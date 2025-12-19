@@ -3,3 +3,6 @@ _book/
 .ipynb_checkpoints/
 __pycache__/
 .quarto
+
+/.quarto/
+**/*.quarto_ipynb
