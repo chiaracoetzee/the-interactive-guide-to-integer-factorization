@@ -10,8 +10,8 @@
     ]
   },
   {
-    "objectID": "intro.html",
-    "href": "intro.html",
+    "objectID": "intro/index.html",
+    "href": "intro/index.html",
     "title": "1  Introduction",
     "section": "",
     "text": "1.1 Some Python code\nThis is a book created from markdown and executable code.\nSee Knuth (1984) for additional discussion of literate programming.\nHere’s some Python code!",
@@ -20,8 +20,8 @@
     ]
   },
   {
-    "objectID": "intro.html#some-python-code",
-    "href": "intro.html#some-python-code",
+    "objectID": "intro/index.html#some-python-code",
+    "href": "intro/index.html#some-python-code",
     "title": "1  Introduction",
     "section": "",
     "text": "Knuth, Donald E. 1984. “Literate Programming.” Comput. J. 27 (2): 97–111. https://doi.org/10.1093/comjnl/27.2.97.",
@@ -30,8 +30,8 @@
     ]
   },
   {
-    "objectID": "summary.html",
-    "href": "summary.html",
+    "objectID": "summary/index.html",
+    "href": "summary/index.html",
     "title": "2  Summary",
     "section": "",
     "text": "In summary, this book has no content whatsoever.",
@@ -40,8 +40,8 @@
     ]
   },
   {
-    "objectID": "references.html",
-    "href": "references.html",
+    "objectID": "references/index.html",
+    "href": "references/index.html",
     "title": "References",
     "section": "",
     "text": "Knuth, Donald E. 1984. “Literate Programming.” Comput.\nJ. 27 (2): 97–111. https://doi.org/10.1093/comjnl/27.2.97.",
