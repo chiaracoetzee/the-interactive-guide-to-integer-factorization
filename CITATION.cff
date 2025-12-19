@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it using the metadata below."
+type: software
+title: "From Trial Division to GNFS: Building modern integer factorization algorithms in Python"
+authors:
+  - family-names: "Coetzee"
+    given-names: "Chiara"
+date-released: 2025-12-18
+version: 0.1.0
+repository-code: "https://github.com/chiaracoetzee/from-trial-division-to-gnfs"
+url: "https://chiaracoetzee.github.io/from-trial-division-to-gnfs/"
+license: "MIT"
+keywords:
+  - "integer factorization"
+  - "quadratic sieve"
+  - "number field sieve"
+  - "cryptography"
+  - "python"
+
+preferred-citation:
+  type: book
+  title: "From Trial Division to GNFS: Building modern integer factorization algorithms in Python"
+  authors:
+    - family-names: "Coetzee"
+      given-names: "Chiara"
+  year: 2025
+  url: "https://chiaracoetzee.github.io/from-trial-division-to-gnfs/"

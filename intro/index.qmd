@@ -1,5 +1,8 @@
 ---
 title: Introduction
+pyodide:
+  resources:
+    - ../src/from_trial_division_to_gnfs
 ---
 
 This is a book created from markdown and executable code.
@@ -11,6 +14,18 @@ See @knuth84 for additional discussion of literate programming.
 Here's some Python code!
 
 ```{pyodide}
+#| autorun: true
+#| runbutton: false
+#| edit: false
+#| output: false
+import sys
+if "src" not in sys.path:
+    sys.path.insert(0, "src")
+```
+
+```{pyodide}
+from from_trial_division_to_gnfs.chapter0 import foo
+
 def trial_division(n):
     f = 2
     factors = []
@@ -23,5 +38,6 @@ def trial_division(n):
         factors.append(n)
     return factors
 
+print(foo(15))
 trial_division(62894113)
 ```

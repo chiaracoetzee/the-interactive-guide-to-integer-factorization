@@ -1,5 +1,7 @@
 project:
   type: book
+  resources:
+    - src/**
 
 book:
   title: "From Trial Division to GNFS: Building modern integer factorization algorithms in Python"
