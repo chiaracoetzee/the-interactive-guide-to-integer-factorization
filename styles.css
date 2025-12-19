@@ -1,0 +1,19 @@
+/* Make the sidebar a sizing container so cqi units work */
+#quarto-sidebar, .sidebar {
+  container-type: inline-size;
+}
+
+/* Only break at <br>, never elsewhere */
+.sidebar-title, .sidebar-header .title {
+  white-space: nowrap;
+  line-height: 1.1;
+  /* Responsive size: min -> preferred (container-based) -> max */
+  font-size: clamp(1.0rem, 12cqi, 1.45rem);
+}
+
+/* Fallback for browsers that don't support cqi */
+@supports not (font-size: 1cqi) {
+  .sidebar-title, .sidebar-header .title {
+    font-size: clamp(1.0rem, 2.2vw, 1.45rem);
+  }
+}

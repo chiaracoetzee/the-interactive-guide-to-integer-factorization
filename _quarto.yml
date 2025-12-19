@@ -4,7 +4,8 @@ project:
     - src/**
 
 book:
-  title: "From Trial Division to GNFS: Building modern integer factorization algorithms in Python"
+  title: "From Trial Division to GNFS"
+  subtitle: "Building modern integer factorization algorithms in Python"
   author: "Chiara Coetzee"
   date: "12/18/2025"
   chapters:
@@ -13,11 +14,16 @@ book:
     - summary/index.qmd
     - references/index.qmd
 
+  sidebar:
+    logo: cover.png
+    logo-alt: "From Trial Division to GNFS cover"
+    logo-href: /
+    title: |
+      From Trial Division<br>to GNFS
+
 bibliography: references.bib
 
 format:
   live-html:
     toc: true
-
-execute:
-  python: .venv/Scripts/python.exe
+    css: styles.css
