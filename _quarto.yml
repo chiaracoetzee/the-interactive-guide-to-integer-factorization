@@ -18,3 +18,6 @@ bibliography: references.bib
 format:
   live-html:
     toc: true
+
+execute:
+  python: .venv/Scripts/python.exe
