@@ -1,8 +1,8 @@
 ---
-title: Introduction
+title: Trial Division
 pyodide:
   resources:
-    - ../src/from_trial_division_to_gnfs
+    - ../src
 ---
 
 ## Test everything!
@@ -62,7 +62,7 @@ def trial_division_brute_force_all_factors_combined(n):
 trial_division_brute_force_all_factors_combined(63)
 ```
 
-Note that because factors can be repeated (like 3 here) we must only increment *f* in the else branch.
+Note that because factors can be repeated (like 3 here) we must only increment *f* in the `else` branch.
 
 Once you have all the factors, verifying them by multiplication is easy (note this also works if `factors` is `[]`):
 
@@ -75,7 +75,7 @@ product  # Returns 63
 
 ## Square root stopping condition
 
-The worst case for `trial_division_brute_force()` is on a large prime, such as 4256233. In this case, it tries every number less than *n* before concluding that *n* is the only factor (O(n) complexity). To fix this problem, we take advantage of this observation:
+The worst case for `trial_division_brute_force()` is on a large prime, such as 4256233. In this case, it tries every number less than *n* before concluding that *n* is the only factor (O(*n*) complexity). To fix this problem, we take advantage of this observation:
 
 **Factors always come in pairs.** If *n* is divisible by *a*, then it is also divisible by *n/a*, and one of these will always be $\le \sqrt{n}$. This is because if both of them were $> \sqrt{n}$, their product would be > $n$ (and it's not, it's exactly $n$).
 
@@ -232,7 +232,7 @@ trial_division_wheel_30030 = generate_trial_division_wheel([2,3,5,7,11,13], 3003
 print(timeit.timeit(lambda: trial_division_wheel_30030(3885924928931), number=10))
 ```
 
-Results show improving performance but with diminishing returns as wheel size increases. If we increase wheel size too much, the code no longer fits in icache and performance degrades drastically. Practical implementations usually pick a fixed wheel size such as 210 or 2310, small enough to make this unlikely.
+Results show improving performance but with diminishing returns as wheel size increases. If we increase wheel size too much, the code no longer fits in icache and performance degrades drastically. Practical implementations usually pick a fixed wheel size such as 2310, small enough to make this unlikely.
 
 ## Pre-computing primes with the Sieve of Eratosthenes
 
@@ -291,7 +291,7 @@ print(timeit.timeit(lambda: trial_division_many(n_list), number=1))
 
 On short lists wheel trial division is faster, but on long lists `trial_division_many()` quickly takes the lead. Many practical implementations will include hard-coded lists of primes to handle factoring numbers up to a certain size (e.g. all 32-bit integers can be factored with a list of just 6542 primes, small enough to fit in a typical L2 cache).
 
-One downside of `trial_division_many()` is that it requires $O(\sqrt(n))$ space to hold the sieve array in `get_primes_up_to()`, whereas `trial_division_wheel` uses constant space. This can be addressed with a **segmented** sieve, where the sieving range is broken up into pieces of size $\sqrt{\sqrt{n}} = n^{1/4}$, and we only keep one piece in memory at a time.
+One downside of `trial_division_many()` is that it requires $O(\sqrt{n})$ space to hold the sieve array in `get_primes_up_to()`, whereas `trial_division_wheel` uses constant space. This can be addressed with a **segmented** sieve, where the sieving range is broken up into pieces of size $\sqrt{\sqrt{n}} = n^{1/4}$, and we only keep one piece in memory at a time. Segmenting sieving will be a valuable part of algorithms discussed later in this book.
 
 To see how this works, suppose we were naively running trial division on every number in the segment:
 
@@ -305,8 +305,7 @@ def get_primes_between_dumb(min_p, max_p):
 ```
 
 Notice that `trial_division_isqrt()` only ever checks for factors up to `sqrt(max_p)`. Therefore, every value in the range is either a multiple of a number `<= sqrt(max_p)`,
-or is prime. So all we have to is precompute a list of primes at least up to that value,
-and pass it in:
+or is prime. So all we have to do is precompute a list of primes at least up to that value, and pass it in:
 
 ```{pyodide}
 # sieve_primes is all primes up to sqrt(max_p) (or more)
@@ -314,7 +313,6 @@ def get_primes_between(min_p, max_p, sieve_primes):
     if min_p < 2: min_p = 2
     sieve = [True] * ((max_p - min_p) + 1)
     for p in sieve_primes:
-        # j_start is  and >= p*p
         j_start = p*p
         if j_start < min_p:
             # set to first multiple of p >= min_p
@@ -343,31 +341,36 @@ import timeit, math, random
 
 # Find one prime factor for each n in n_list
 def trial_division_many_segmented_sieve(n_list):
-    # Start with largest value n for each factor, search
-    # for a smaller one
-    results = n_list
+    results = {n:n for n in n_list}
+    unfactored_n = set(n_list)
 
     sieve_max = math.isqrt(max(n_list))
     segment_size = math.isqrt(sieve_max)
     sieve_primes = get_primes_up_to(math.isqrt(sieve_max))
 
-    # Loop over segments
+    # Loop over sieve segments
     for p_min in range(0, sieve_max, segment_size):
-        p_max = p_min + segment_size - 1
+        p_max = min(p_min + segment_size - 1, sieve_max)
         primes_segment = get_primes_between(p_min, p_max, sieve_primes)
-        for i in range(0, len(n_list)):
+
+        # For each remaining unfactored n, test if any of the
+        # primes in this segment divide it.
+        for n in list(unfactored_n):
             for p in primes_segment:
-                if results[i] > p and n_list[i] % p == 0:
-                    results[i] = p
+                if n % p == 0:
+                    results[n] = p
+                    unfactored_n.remove(n)
                     break
 
     return results
 
-n_list = [random.randint(1, 999_000_000_000) for _ in range(100)]
+n_list = [random.randint(1, 9_999_000_000_000) for _ in range(100)]
 print(f"Time: {timeit.timeit(lambda: trial_division_many(n_list), number=1)}")
 print(f"Space: {math.isqrt(max(n_list))}")
 print(f"Time: {timeit.timeit(lambda: trial_division_many_segmented_sieve(n_list), number=1)}")
 print(f"Space: {math.isqrt(math.isqrt(max(n_list)))}")
 ```
+
+It iterates over the $n^{1/4}$ segments (each of size $n^{1/4}$) and for each one, tests all primes in that segment against all remaining unfactored integers in the list. The sieve primes used to sieve each segment are also of size $n^{1/4}$. In exchange for a minor slowdown, space use is dramatically reduced, allowing the sieve to complete for large numbers that otherwise would not fit in available memory.
 
 ## Rolling our own isqrt(n) {#sec-isqrtn}
