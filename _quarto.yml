@@ -10,8 +10,7 @@ book:
   date: "12/18/2025"
   chapters:
     - index.qmd
-    - intro/index.qmd
-    - summary/index.qmd
+    - trial-division/index.qmd
     - references/index.qmd
 
   sidebar:

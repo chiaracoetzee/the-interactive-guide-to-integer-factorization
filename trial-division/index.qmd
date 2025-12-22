@@ -1,0 +1,373 @@
+---
+title: Introduction
+pyodide:
+  resources:
+    - ../src/from_trial_division_to_gnfs
+---
+
+## Test everything!
+
+The simplest possible algorithm for factoring an integer *n* is to just try every possible factor *f* and look for one that evenly divides *n*. In other words, the remainder of *n* when dividing by *f* (written `n % f`) should be zero. We start at 2 because every integer is divisible by 1, and we're looking for a nontrivial factor.
+
+```{pyodide}
+def trial_division_brute_force(n):
+    f = 2
+    while True:
+        if n % f == 0:
+            return f
+        f += 1
+
+trial_division_brute_force(63)  # Returns 3
+```
+
+This function will always return eventually, once *f* = *n*, because every integer is divisible by itself. If no smaller factor was found, *n* is prime.
+
+```{pyodide}
+trial_division_brute_force(17)  # Returns 17
+```
+
+This algorithm always returns the smallest factor. This factor will always be prime, since if it was a composite number, we already would've encountered its factors earlier in the loop.
+
+## Getting all the factors
+
+The above method only returns one prime factor, but if we want all of them, we can just divide *n* by the first factor, then factor what's left, until reaching 1:
+
+```{pyodide}
+def trial_division_brute_force_all_factors(n):
+    factors = []
+    while n != 1:
+        f = trial_division_brute_force(n)
+        factors.append(f)
+        n //= f   # // operator is integer division
+    return factors
+
+factors = trial_division_brute_force_all_factors(63)  # Returns [3, 3, 7]
+factors
+```
+
+This will work with any factoring method that returns a prime factor. However, in this case this method is wasteful, because it repeatedly checks small factors that were already checked on previous calls. Better is to capture all the factors as we go:
+
+```{pyodide}
+def trial_division_brute_force_all_factors_combined(n):
+    factors = []
+    f = 2
+    while n != 1:
+        if n % f == 0:
+            factors.append(f)
+            n //= f
+        else:
+            f += 1
+    return factors
+
+trial_division_brute_force_all_factors_combined(63)
+```
+
+Note that because factors can be repeated (like 3 here) we must only increment *f* in the else branch.
+
+Once you have all the factors, verifying them by multiplication is easy (note this also works if `factors` is `[]`):
+
+```{pyodide}
+product = 1
+for f in factors:
+    product *= f
+product  # Returns 63
+```
+
+## Square root stopping condition
+
+The worst case for `trial_division_brute_force()` is on a large prime, such as 4256233. In this case, it tries every number less than *n* before concluding that *n* is the only factor (O(n) complexity). To fix this problem, we take advantage of this observation:
+
+**Factors always come in pairs.** If *n* is divisible by *a*, then it is also divisible by *n/a*, and one of these will always be $\le \sqrt{n}$. This is because if both of them were $> \sqrt{n}$, their product would be > $n$ (and it's not, it's exactly $n$).
+
+Exploiting this gives us a faster trial division algorithm, the most well-known version, with $O(\sqrt{n})$ complexity:
+
+```{pyodide}
+import timeit
+
+def trial_division(n):
+    f = 2
+    while f * f <= n:  # Test if f <= sqrt(n) using multiplication
+        if n % f == 0:
+            return f
+        f += 1
+    return n  # If no factor < sqrt(n) found, n is the smallest
+
+# These both return 4256233 but trial_division is much faster
+print(timeit.timeit(lambda: trial_division_brute_force(4256233), number=1))
+print(timeit.timeit(lambda: trial_division(4256233), number=10))
+```
+
+In contexts where `f * f` can overflow, `f <= n/f` avoids this, but is more expensive. Both `f * f` and `f <= n/f` can be avoided by pre-computing `sqrt_n` using Python's efficient `math.isqrt(n)`:
+
+```{pyodide}
+import timeit, math
+
+def trial_division_isqrt(n):
+    f = 2
+    sqrt_n = math.isqrt(n)
+    while f <= sqrt_n:
+        if n % f == 0:
+            return f
+        f += 1
+    return n
+
+# isqrt version is modestly faster for large primes
+print(timeit.timeit(lambda: trial_division(3885924928931), number=1))
+print(timeit.timeit(lambda: trial_division_isqrt(3885924928931), number=1))
+```
+
+We'll describe how to efficiently implement `isqrt(n)` yourself later in @sec-isqrtn.
+
+## Wheel trial division
+
+There is no point in testing even factors > 2, since if 2 doesn't divide into *n*, no larger even number will. This reduces runtime by about 2x.
+
+```{pyodide}
+import timeit, math
+
+def trial_division_skip_even(n):
+    if n % 2 == 0:
+        return 2
+    f = 3
+    sqrt_n = math.isqrt(n)
+    while f <= sqrt_n:
+        if n % f == 0:
+            return f
+        f += 2
+    return n
+
+print(timeit.timeit(lambda: trial_division_isqrt(3885924928931), number=1))
+print(timeit.timeit(lambda: trial_division_skip_even(3885924928931), number=1))
+```
+
+This technique can be generalized: suppose we want to skip both all even numbers and all multiples of 3 (other than 2 and 3 themselves). To do this, we break up the factors into groups of 6 starting at 5, the next prime value:
+
+1 2 3 4 [5 6 7 8 9 10] [11 12 13 14 15 16] [17 18 19 20 21 22] ...
+
+The numbers in each group can be written as 6k−1, 6k, 6k+1, 6k+2, 6k+3, 6k+4. Three of these (6k, 6k+2, 6k+4) will always be even and can be ignored. Two of them (6k, 6k+3) will always be multiples of 3. That leaves only 6k−1 and 6k+1 that need to be checked:
+
+1 2 3 4 [5 _ 7 _ _ _ ] [11 __ 13 __ __ __ ] [17 __ 19 __ __ __ ] ...
+
+To implement this, we start at 5 and alternate between incrementing by 2 and incrementing by 4:
+
+```{pyodide}
+import timeit, math
+
+def trial_division_wheel_6(n):
+    if n % 2 == 0: return 2
+    if n % 3 == 0: return 3
+
+    sqrt_n = math.isqrt(n)
+    f = 5
+    while f <= sqrt_n:
+        if n % f == 0: return f  # Check 6k-1
+        f += 2
+        if n % f == 0: return f  # Check 6k+1
+        f += 4
+    return n
+
+print(timeit.timeit(lambda: trial_division_skip_even(3885924928931), number=1))
+print(timeit.timeit(lambda: trial_division_wheel_6(3885924928931), number=1))    
+```
+
+The same idea generalizes to even more primes: we could remove all multiples of 2, 3, and 5 using a wheel of size 2 × 3 × 5 = 30, or all multiplies of 2, 3, 5, and 7 using a wheel of size 210. As we increase the wheel size, the number of divisions drops, but the number of residues (and number of `if` statements) also increases rapidly:
+
+| Wheel size | Basis primes | if statements per loop | Factors checked (%) | Theoretical speedup
+| :--- | :--- | :--- | :--- | :--- |
+| **1** | None | 1 | 100.00% | 1.00x |
+| **2** | 2 | 1 | 50.00% | 2.00x |
+| **6** | 2, 3 | 2 | 33.33% | 3.00x |
+| **30** | 2, 3, 5 | 8 | 26.67% | 3.75x |
+| **210** | 2, 3, 5, 7 | 48 | 22.86% | 4.37x |
+| **2,310** | ... 11 | 480 | 20.78% | 4.81x |
+| **30,030** | ... 13 | 5,760 | 19.18% | 5.21x |
+| **510,510** | ... 17 | 92,160 | 18.05% | 5.54x |
+| **9,699,690** | ... 19 | 1,658,880 | 17.10% | 5.85x |
+
+Rather than write thousands of lines of code by hand, we can instead use Python metaprogramming techniques, in which you build up a string containing the code and then use `exec()` on it, to create a version of `trial_division_wheel()` for each possible wheel size:
+
+```{pyodide}
+import timeit, math
+
+def generate_trial_division_wheel(primes, wheel_size):
+    residues = [
+        i for i in range(1, wheel_size + 1) 
+        if all(i % p != 0 for p in primes)
+    ]
+
+    # Compute gaps (distances between the residues)
+    gaps = [residues[i+1] - residues[i] for i in range(len(residues) - 1)]
+    gaps.append((wheel_size + residues[0]) - residues[-1])
+    
+    func_name = f"trial_division_wheel_{wheel_size}"
+    code_lines = [f"def {func_name}(n):"]
+    for p in primes:
+        code_lines.append(f"    if n % {p} == 0: return {p}")
+    
+    code_lines.append(f"    sqrt_n = math.isqrt(n)")
+    # Start with residues[1] which is next prime (skip 1)
+    code_lines.append(f"    f = {residues[1]}")  
+    code_lines.append(f"    while f <= sqrt_n:")
+    
+    # Rotate gaps because we started with residues[1]
+    rotated_gaps = gaps[1:] + [gaps[0]] # 
+    for gap in (rotated_gaps):  
+        code_lines.append(f"        if n % f == 0: return f")
+        code_lines.append(f"        f += {gap}")
+    code_lines.append(f"    return n")
+    
+    namespace = {"math": math}
+    exec("\n".join(code_lines), namespace)
+    return namespace[func_name]
+
+trial_division_wheel_6 = generate_trial_division_wheel([2,3], 6)
+print(timeit.timeit(lambda: trial_division_wheel_6(3885924928931), number=10))
+trial_division_wheel_30 = generate_trial_division_wheel([2,3,5], 30)
+print(timeit.timeit(lambda: trial_division_wheel_30(3885924928931), number=10))
+trial_division_wheel_210 = generate_trial_division_wheel([2,3,5,7], 210)
+print(timeit.timeit(lambda: trial_division_wheel_210(3885924928931), number=10))
+trial_division_wheel_2310 = generate_trial_division_wheel([2,3,5,7,11], 2310)
+print(timeit.timeit(lambda: trial_division_wheel_2310(3885924928931), number=10))
+trial_division_wheel_30030 = generate_trial_division_wheel([2,3,5,7,11,13], 30030)
+print(timeit.timeit(lambda: trial_division_wheel_30030(3885924928931), number=10))
+```
+
+Results show improving performance but with diminishing returns as wheel size increases. If we increase wheel size too much, the code no longer fits in icache and performance degrades drastically. Practical implementations usually pick a fixed wheel size such as 210 or 2310, small enough to make this unlikely.
+
+## Pre-computing primes with the Sieve of Eratosthenes
+
+Suppose rather than just factoring one number, we wanted to factor *many* numbers. In this case, rather than using a wheel, it's more efficient to precompute all possible prime factors for all the numbers (up to sqrt of the largest *n*), and then reuse that list for factoring each one.
+
+To precompute the list of primes, we could use trial division to test if each factor is prime, but this is too slow. A faster way is the classical **Sieve of Eratosthenes**. It begins by assuming all numbers are prime, then removes all multiples of 2, then all multiples of 3, and so on:
+
+```{pyodide}
+import timeit, math
+
+def get_primes_up_to(n):
+    result = []
+    sieve = [True] * (n+1)
+    sieve[0], sieve[1] = False, False
+    for i in range(2, n+1):
+        if sieve[i]:
+            result.append(i)
+            for j in range(i*i, n+1, i):
+                sieve[j] = False
+    return result
+
+get_primes_up_to(50)
+```
+
+The `range(i*i, n+1, i)` skips in steps of `i`. We start at `i*i` because `j*i` for all `j < i` were already covered by earlier smaller factors. The complexity $O(n \log \log n)$ comes from the fact that $n/2 + n/3 + n/5 + ...$ (*n*
+times the sum of the reciprocals of the primes) is proportional to $n \log \log n$.
+
+Now we use this list to speed up factoring:
+
+```{pyodide}
+import timeit, math, random
+
+# Find one prime factor for each n in n_list
+def trial_division_many(n_list):
+    primes = get_primes_up_to(math.isqrt(max(n_list)))
+    results = []
+    for n in n_list:
+        f = n
+        for p in primes:
+            if n % p == 0:
+                f = p
+                break
+        results.append(f)
+    return results
+
+print("List size 1:")
+n_list = [3885924928931]
+print(timeit.timeit(lambda: [trial_division_wheel_30030(n) for n in n_list], number=1))
+print(timeit.timeit(lambda: trial_division_many(n_list), number=1))
+
+print("List size 1000:")
+n_list = [random.randint(1, 999_000_000) for _ in range(1000)]
+print(timeit.timeit(lambda: [trial_division_wheel_30030(n) for n in n_list], number=1))
+print(timeit.timeit(lambda: trial_division_many(n_list), number=1))
+```
+
+On short lists wheel trial division is faster, but on long lists `trial_division_many()` quickly takes the lead. Many practical implementations will include hard-coded lists of primes to handle factoring numbers up to a certain size (e.g. all 32-bit integers can be factored with a list of just 6542 primes, small enough to fit in a typical L2 cache).
+
+One downside of `trial_division_many()` is that it requires $O(\sqrt(n))$ space to hold the sieve array in `get_primes_up_to()`, whereas `trial_division_wheel` uses constant space. This can be addressed with a **segmented** sieve, where the sieving range is broken up into pieces of size $\sqrt{\sqrt{n}} = n^{1/4}$, and we only keep one piece in memory at a time.
+
+To see how this works, suppose we were naively running trial division on every number in the segment:
+
+```{pyodide}
+def get_primes_between_dumb(min_p, max_p):
+    primes = []
+    for i in range(min_p, max_p + 1):
+        if trial_division_isqrt(i) == i:
+            primes.append(i)
+    return primes
+```
+
+Notice that `trial_division_isqrt()` only ever checks for factors up to `sqrt(max_p)`. Therefore, every value in the range is either a multiple of a number `<= sqrt(max_p)`,
+or is prime. So all we have to is precompute a list of primes at least up to that value,
+and pass it in:
+
+```{pyodide}
+# sieve_primes is all primes up to sqrt(max_p) (or more)
+def get_primes_between(min_p, max_p, sieve_primes):
+    if min_p < 2: min_p = 2
+    sieve = [True] * ((max_p - min_p) + 1)
+    for p in sieve_primes:
+        # j_start is  and >= p*p
+        j_start = p*p
+        if j_start < min_p:
+            # set to first multiple of p >= min_p
+            j_start = (min_p + p - 1)//p*p
+        for j in range(j_start, max_p+1, p):
+            sieve[j - min_p] = False
+
+    result = []
+    for i in range(0, len(sieve)):
+        if sieve[i]:
+            result.append(i + min_p)
+    return result
+
+sieve_primes = get_primes_up_to(math.isqrt(10200))
+print(f"sieve_primes: {sieve_primes}")
+print(get_primes_between(10000, 10100, sieve_primes))
+print(get_primes_between(10100, 10200, sieve_primes))
+```
+
+In the example call, only 25 primes are in `sieve_primes`, so each `get_primes_between()` will be fast.
+
+Finally here is our updated `trial_division_many()`:
+
+```{pyodide}
+import timeit, math, random
+
+# Find one prime factor for each n in n_list
+def trial_division_many_segmented_sieve(n_list):
+    # Start with largest value n for each factor, search
+    # for a smaller one
+    results = n_list
+
+    sieve_max = math.isqrt(max(n_list))
+    segment_size = math.isqrt(sieve_max)
+    sieve_primes = get_primes_up_to(math.isqrt(sieve_max))
+
+    # Loop over segments
+    for p_min in range(0, sieve_max, segment_size):
+        p_max = p_min + segment_size - 1
+        primes_segment = get_primes_between(p_min, p_max, sieve_primes)
+        for i in range(0, len(n_list)):
+            for p in primes_segment:
+                if results[i] > p and n_list[i] % p == 0:
+                    results[i] = p
+                    break
+
+    return results
+
+n_list = [random.randint(1, 999_000_000_000) for _ in range(100)]
+print(f"Time: {timeit.timeit(lambda: trial_division_many(n_list), number=1)}")
+print(f"Space: {math.isqrt(max(n_list))}")
+print(f"Time: {timeit.timeit(lambda: trial_division_many_segmented_sieve(n_list), number=1)}")
+print(f"Space: {math.isqrt(math.isqrt(max(n_list)))}")
+```
+
+## Rolling our own isqrt(n) {#sec-isqrtn}
