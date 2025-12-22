@@ -374,3 +374,107 @@ print(f"Space: {math.isqrt(math.isqrt(max(n_list)))}")
 It iterates over the $n^{1/4}$ segments (each of size $n^{1/4}$) and for each one, tests all primes in that segment against all remaining unfactored integers in the list. The sieve primes used to sieve each segment are also of size $n^{1/4}$. In exchange for a minor slowdown, space use is dramatically reduced, allowing the sieve to complete for large numbers that otherwise would not fit in available memory.
 
 ## Rolling our own isqrt(n) {#sec-isqrtn}
+
+Throughout this section we've been depending on `math.isqrt(n)` to figure out where to stop our loops and how to segment sieving. But how does it work?
+
+Just like with the square root stopping condition, it relies on the observation that if $x > \sqrt{n}$, then $n/x < \sqrt{n}$. Since these two values are on either side of $\sqrt{n}$, if we average them together, we get a result closer than either one. Then we repeat until the answer is found. This is called **Heron's method**.
+
+```{pyodide}
+def my_isqrt(n):
+    # Initial guess can be any value between sqrt(n) and n.
+    # We choose a value with about half the bit length of n.
+    x = 1 << (n.bit_length() // 2 + 1)
+    y = (x + n // x) // 2
+
+    while y < x:
+        print(f"Current guess: {x}")
+        x = y
+        y = (x + n // x) // 2
+        
+    return x
+
+my_isqrt(1000)
+```
+
+Note that the condition `y < x` checks both for the case where the
+algorithm converges (`x == y`) and the case where it oscillates between
+$\lfloor\sqrt{n}\rfloor$ and $\lceil\sqrt{n}\rceil$.
+
+Heron's method is a special case of Newton's method and can be viewed as finding the root of the function $x^2 - n = 0$. It goes up from the current *x* guess to the graph, then follows the tangent line back down to the target *y* value, then repeats this. Convergence is quadratic, meaning the correct number of digits doubles at each step.
+
+```{python}
+#| label: graph-isqrt-staircase
+#| fig-responsive: true
+#| out-width: "100%"
+#| echo: false
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+def my_isqrt_steps(n):
+    steps = []
+    if n == 0: return [0]
+    x = n
+    steps.append(x)
+    y = (x + n // x) // 2
+    while y < x:
+        x = y
+        steps.append(x)
+        y = (x + n // x) // 2
+    return steps
+
+n = 1000
+start_x = 64
+steps = [start_x]
+curr = start_x
+while True:
+    nxt = (curr + n // curr) // 2
+    if nxt >= curr:
+        break
+    steps.append(nxt)
+    curr = nxt
+
+# Plotting
+x_vals = np.linspace(0, 70, 400)
+y_vals = x_vals**2
+
+plt.figure(figsize=(10, 6))
+plt.plot(x_vals, y_vals, label='$y = x^2$', color='blue', alpha=0.6)
+plt.axhline(y=n, color='red', linestyle='--', label=f'Target $y = n = {n}$')
+
+# Draw the Newton steps
+for i in range(len(steps) - 1):
+    x_k = steps[i]
+    x_next = steps[i+1]
+    y_k = x_k**2
+    
+    # Vertical line from target line to curve
+    plt.vlines(x_k, n, y_k, colors='green', linestyles='dotted')
+    # Line from curve to next integer guess on target line
+    plt.plot([x_k, x_next], [y_k, n], color='black', alpha=0.8)
+    
+    plt.scatter(x_k, y_k, color='green', zorder=5)
+    plt.text(x_k, y_k + 100, f'$x_{i}={x_k}$', ha='center', fontsize=14,
+        bbox=dict(facecolor='white', edgecolor='none', alpha=0.8, pad=1))
+
+# Final point
+plt.scatter(steps[-1], steps[-1]**2, color='darkred', zorder=5)
+plt.text(steps[-1], steps[-1]**2 - 200, f'Final: {steps[-1]}', ha='center', fontsize=12, fontweight='bold', bbox=dict(facecolor='white', edgecolor='none', alpha=0.8, pad=1))
+
+plt.ylim(0, 4500)
+plt.xlim(0, 70)
+plt.title(f"Heron's Method for isqrt({n}) with initial guess {start_x}", fontsize=14)
+plt.xlabel('Guess ($x$)', fontsize=12)
+plt.ylabel('$x^2$', fontsize=12)
+plt.legend()
+plt.grid(True, which='both', linestyle='--', alpha=0.5)
+
+plt.show()
+plt.close()
+```
+
+You may wonder why we can use integer division in place of regular division. A rigorous analysis of the floor error terms shows that using two integer divisions here is exactly the same as doing the computation in full precision and taking the floor afterwards:
+
+$$ \left\lfloor\frac{x + \lfloor{n/x}\rfloor}{2}\right\rfloor = \left\lfloor\frac{x + (n/x)}{2}\right\rfloor $$
+
+Since $f(x)=x^2-n$ is convex, a guess $\geq \sqrt{n}$ always yields a next guess $\geq \sqrt{n}$. Together, these mean the result is never less than $\lfloor{\sqrt{n}}\rfloor$.

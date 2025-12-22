@@ -1,0 +1,5 @@
+/* Force all images and figure outputs to stay within the page boundaries */
+.cell-output-display img, .cell-output-display svg {
+    max-width: 100% !important;
+    height: auto !important;
+}
