@@ -1,9 +1,10 @@
 ---
-title: Trial Division
 pyodide:
   resources:
     - ../src
 ---
+
+# Trial Division {#sec-trial-division}
 
 ## Test everything!
 
@@ -400,7 +401,7 @@ Note that the condition `y < x` checks both for the case where the
 algorithm converges (`x == y`) and the case where it oscillates between
 $\lfloor\sqrt{n}\rfloor$ and $\lceil\sqrt{n}\rceil$.
 
-Heron's method is a special case of Newton's method and can be viewed as finding the root of the function $x^2 - n = 0$. It goes up from the current *x* guess to the graph, then follows the tangent line back down to the target *y* value, then repeats this. Convergence is quadratic, meaning the correct number of digits doubles at each step.
+Heron's method is a special case of Newton's method and can be viewed as finding a root of the function $x^2 - n = 0$. It goes up from the current *x* guess to the graph, then follows the tangent line back down to the target *y* value, then repeats this.
 
 ```{python}
 #| label: graph-isqrt-staircase
@@ -473,8 +474,15 @@ plt.show()
 plt.close()
 ```
 
+Convergence is quadratic, meaning the number of correct digits doubles at each step. This can be seen better with a very large integer input:
+
+```{pyodide}
+my_isqrt(348759433340634473395220677216200050249)
+```
+
+
 You may wonder why we can use integer division in place of regular division. A rigorous analysis of the floor error terms shows that using two integer divisions here is exactly the same as doing the computation in full precision and taking the floor afterwards:
 
 $$ \left\lfloor\frac{x + \lfloor{n/x}\rfloor}{2}\right\rfloor = \left\lfloor\frac{x + (n/x)}{2}\right\rfloor $$
 
-Since $f(x)=x^2-n$ is convex, a guess $\geq \sqrt{n}$ always yields a next guess $\geq \sqrt{n}$. Together, these mean the result is never less than $\lfloor{\sqrt{n}}\rfloor$.
+Since $f(x)=x^2-n$ is convex as shown above, a guess $\geq \sqrt{n}$ always yields a next guess $\geq \sqrt{n}$. Together, these mean the result is never less than $\lfloor{\sqrt{n}}\rfloor$.
