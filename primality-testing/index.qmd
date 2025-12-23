@@ -43,29 +43,54 @@ Our first primality test is based on **Fermat's Little Theorem**, which states t
 
 For example, given the prime *p* = 11 and *a* = 2, we can compute 2^11^ % 11 = 2048 % 11 = 2. The contrapositive is also true:
 
-* If 1 < *a* < *n* and *a*^n^ % *n* ≠ *a*, then *n* is composite.
+* If 1 < *a* < *n* and *a*^n^ % *n* ≠ *a*, then *n* is composite. An *a* satisfying this is called a *witness*.
 
-For example, 2^15^ % 15 = 32768 % 15 = 8 ≠ 2, showing 15 is composite. Note that this doesn't tell us any factor of 15, only that it *has* factors.
+For example, 2^15^ % 15 = 32768 % 15 = 8 ≠ 2, showing 15 is composite (and 2 is a witness). Note that this doesn't tell us any factor of 15, only that it *has* factors.
 
-The idea is that if we pick many random values of *a* and find *a*^n^ % *n* = *a* for all of them, we can have high confidence that *n* is prime:
+We begin by investigating a^n^ for various *a* and *n* to see when the property `a**n % n == a` is satisfied. For efficiency we replace `a**n % n` by the much faster equivalent `pow(a, n, n)` ― we will explore in @sec-modular-exponentiation how `pow()` works in detail.
+
+```{pyodide}
+def test_fermat_property(n):
+    print(f"\n{n}: ", end="")
+    for a in range(2, n-1):
+        if pow(a, n, n) == a:  # a**n % n == a
+            print("T", end="")
+        else:
+            print("F", end="")
+    print()
+
+for n in [11, 13, 15, 24, 31, 35]:
+    test_fermat_property(n)
+```
+
+For primes like 11, 13, and 31, the property is always true. For most composite numbers like 15, 24, and 35, the property is false for at least half of all possible *a* values. There is no simple way to compute a witness *a* value such that *a*^n^ % *n* ≠ *a*. But because at least half the possible *a* will work, it's sufficient to just try random values of *a*. Each gives us a ≥50% chance of finding a witness, so after trying maybe 30 different values, the chance of failing to find one is < 1/2^30^, incredibly unlikely. This gives us a simple randomized primality test:
 
 ```{pyodide}
 import random
 
 def is_prime_fermat(n):
-    for i in range(20):
+    for i in range(30):
         a = random.randint(2,n-1)
-        if a**n % n != a:  # Slow!
+        if pow(a, n, n) != a:
             return False
-    return True  # Wrong result for Carmichael numbers!
+    return True
 
-for n in [11, 13, 15, 561]:
+for n in [11, 13, 15, 24, 31, 35]:
     print(f"{n} prime: {is_prime_fermat(n)}")
 ```
 
-There are two problems with this: 1. computing *a*^n^ is really expensive for large *n*; 2. there are certain composite *n* called Carmichael numbers (561, 1105, ...) where this test incorrectly returns `True`. We'll address both.
+It can seem strange at first to accept a small chance of failure. However, in the real world hardware failures causing incorrect results are much more likely than 1/2^30^, so this is not an issue in practice.
 
-### Speeding up exponentiation mod n
+Unfortunately, there is a bigger problem with this test: there are certain special composite numbers *n* called Carmichael numbers (like 561 = 3 × 11 × 17) that always satisfy the Fermat property for all *a*, just like a prime number, and it will incorrectly return `True` for these:
+
+```{pyodide}
+test_fermat_property(561)
+is_prime_fermat(561)
+```
+
+## Miller-Rabin to the rescue
+
+## Speeding up exponentiation mod n {#sec-modular-exponentiation}
 
 We begin with the problem that it's too slow to compute *a*^n^ for large *n*. For example, if *a*=2 and *n*=1000000, then `2**1000000 % 13` computes a massive, 301030-digit intermediate value, only to reduce it to 3 afterwards. Instead, we can aggressively take the remainder during the exponentiation computation, every time we exceed 13:
 
