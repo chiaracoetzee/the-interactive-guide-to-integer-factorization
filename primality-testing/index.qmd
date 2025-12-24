@@ -63,7 +63,7 @@ for n in [11, 13, 15, 24, 31, 35]:
     test_fermat_property(n)
 ```
 
-For primes like 11, 13, and 31, the property is always true. For most composite numbers like 15, 24, and 35, the property is false for at least half of all possible *a* values. There is no simple way to compute a witness *a* value such that *a*^n^ % *n* ≠ *a*. But because at least half the possible *a* will work, it's sufficient to just try random values of *a*. Each gives us a ≥50% chance of finding a witness, so after trying maybe 30 different values, the chance of failing to find one is < 1/2^30^, incredibly unlikely. This gives us a simple randomized primality test:
+For primes like 11, 13, and 31, the property is always true. For most composite numbers like 15, 24, and 35, the property is false for at least half of all possible *a* values. There is no simple way to compute a witness *a* value such that *a*^n^ % *n* ≠ *a*. But because at least half the possible *a* will work, it's sufficient to just try random values of *a*. Each gives us a ≥50% chance of finding a witness, so after trying maybe 30 different values, the chance of failing to find one is < 1/2^30^, incredibly unlikely. This gives us a fast randomized primality test:
 
 ```{pyodide}
 import random
@@ -88,33 +88,186 @@ test_fermat_property(561)
 is_prime_fermat(561)
 ```
 
+### Congruence modulo n notation
+
+Before proceeding, to make it easier to discuss remainders, we introduce this standard math notation for **congruence modulo n**:
+
+$$ a \equiv b \pmod{n} $$
+
+This simply means `a % n == b % n`. For example:
+
+* 17 ☰ 5 (mod 4)  (because `17 % 4 == 5 % 4 == 1`)
+* 5 ☰ 2 (mod 3)  (because `5 % 3 == 2 % 3 == 2`)
+* 15 ☰ 0 (mod 5)  (because `15 % 5 == 0 % 5 == 0`)
+
+A congruence like this is a lot like an equation: as long as we add, subtract, or multiply both sides by the same number, it will remain true. Dividing both sides by the same number is also allowed, but *only under the condition* that the divisor and *n* have no factors in common. Otherwise something like this can happen:
+
+* 30 ☰ 15 (mod 5) ✅
+* 6 ☰ 3 (mod 5) ❌ (breaks when dividing both sides by 5)
+* 10 ☰ 5 (mod 5) ✅ (dividing both sides by 3 is okay, 3 has no factors in common with 5)
+
+Using this notation, we can rewrite Fermat's Little Theorem like this:
+
+$$ p\text{ prime}, 1 < a < p \implies a^p \equiv a \pmod p $$
+
+If we divide both sides by *a* (which shares no factors with *p*) we also get this common form which we'll use in the next section:
+
+$$ p\text{ prime}, 1 < a < p \implies a^{p-1} \equiv 1 \pmod p $$
+
 ## Miller-Rabin to the rescue
+
+Because Fermat's Little Theorem cannot distinguish Carmichael numbers from primes, we need a new theorem that can, so we introduce the **Square Roots of Unity Property**:
+
+* If *p* is prime, then for all 2 ≤ *x* ≤ *p*−2, *x*^2^ ☰ 1 (mod *p*)
+
+A value *x* such that *x*^2^ ☰ 1 (mod *p*) is called a **square root of unity**. The values 1 and *p*−1 are always square roots of unity (the trivial roots). The above property states that there are no others.
+
+Proof: If *x*^2^ ☰ 1 (mod *p*), that means *x*^2^ − 1 = (*x* − 1)(*x* + 1) is divisible by *p*. And if a prime *p* divides a product, it must divide either one factor or the other. This implies either *x* ☰ 1 (mod *p*) or *x* ☰ −1 (mod *p*). Either way it's not between 2 and *p*−2.
+
+To explore this property, we'll list all the square roots of unity for various *n*:
+
+```{pyodide}
+def sqrts_of_unity(n):
+    return [a for a in range(0, n) if a*a % n == 1]
+
+for n in [11, 13, 15, 24, 31, 35, 561]:
+    print(f"{n}: {sqrts_of_unity(n)}")
+```
+
+This property can detect any composite number. However, roots of unity are much sparser than Fermat witnesses, so we can't just choose *a* at random and hope to find one. We need a different strategy.
+
+We'll walk through an example with the Carmichael number 561 and the witness *a*=2. We first do the Fermat test using *a*^n-1^ ☰ 1 (mod *n*):
+
+* 2^560^ ☰ 1 (mod 561)
+
+As expected, the Fermat test is inconclusive. But because 560/2 = 280, we can write:
+
+* (2^280^)^2^ ☰ 1 (mod 561)
+
+This means 2^280^ is a square root of unity! Unfortunately, it turns out it's equivalent to 1, making it a trivial square root of unity:
+
+* 2^280^ ☰ 1 (mod 561)
+
+But because 280/2 = 140, we can repeat this same trick to find that 2^140^ is a square root of unity. And this one it turns out is nontrivial:
+
+* 2^140^ ☰ 67 (mod 561)
+
+Since 67^2^ ☰ 1 (mod 561), this proves 561 is composite. But what if instead of *a*=2 we used *a*=101? In this case we would have found:
+
+* 101^560^ ☰ 1 (mod 561)
+* 101^280^ ☰ 1 (mod 561)
+* 101^140^ ☰ 1 (mod 561)
+* 101^70^ ☰ 1 (mod 561)
+* 101^35^ ☰ 560 (mod 561)
+
+Since 560 = *p*-1, all of these are trivial square roots of unity. And we can't continue because 35 is odd. Additionally, once we reach the trivial square root *p*-1, the next step will no longer be a square root of unity, so we're stuck. This kind of *a* that fails to show that *n* is composite is called a **strong liar**.
+
+Fortunately, it can be shown that at most 25% of possible *a* values are strong liars. This means that if we take about 20 values of *a* at random, the probability of failure will be extremely low:
+
+```{pyodide}
+import random
+
+def is_prime_sqrt_unity(n):
+    for i in range(20):
+        a = random.randint(2,n-1)
+        exponent = n-1
+        if pow(a, exponent, n) != 1:
+            return False
+        while exponent % 2 == 0:
+            exponent //= 2
+            a_to_exp = pow(a, exponent, n)
+            if a_to_exp != 1 and a_to_exp != n-1:
+                return False
+            if a_to_exp == n-1:
+                break
+    return True
+
+for n in [11, 13, 15, 24, 31, 35]:
+    print(f"{n} prime: {is_prime_sqrt_unity(n)}")
+for n in [561, 1105, 1729]: # Carmichael numbers
+    print(f"{n} prime: {is_prime_sqrt_unity(n)}")
+```
+
+This algorithm works well, but performs more operations than necessary. Miller-Rabin algorithm optimizes it by going in the opposite direction: instead of starting at *a*^n-1^ and successively dividing the exponent by 2, it instead divides all the 2's out of the exponent at the beginning and then multiplies them back in one at a time until reaching *n*-1. For example, with *a*=2 and *p*=561:
+
+*n* - 1 = 560 = 2^4^ × 35
+
+((((2^35^)^2^)^2^)^2^)^2^ = 2^560^
+
+In other words, if we take 2^35^ mod 561, and square it four times mod 561, we will get 2^560^. If anywhere along the way we encounter 1, that means the previous number in the sequence is a square root of unity:
+
+* 2^35^ ☰ 263 (mod 561)
+* 2^70^ ☰ 263^2^ ☰ 166 (mod 561)
+* 2^140^ ☰ 166^2^ ☰ 140 (mod 561)
+* 2^280^ ☰ 140^2^ ☰ 1 (mod 561)
+* 2^560^ ☰ 1^2^ ☰ 1 (mod 561)
+
+Because 140^2^ ☰ 1 (mod 561), we have a nontrivial root of unity and 561 is composite. If *a*=101 on the other hand:
+
+* 101^35^ ☰ 560 (mod 561)
+* 101^70^ ☰ 560^2^ ☰ 1 (mod 561)
+* 101^140^ ☰ 1^2^ ☰ 1 (mod 561)
+* 101^280^ ☰ 1^2^ ☰ 1 (mod 561)
+* 101^560^ ☰ 1^2^ ☰ 1 (mod 561)
+
+Only 1 and *n*-1 appear, so the test is inconclusive, and we must try a different *a*.
+
+One final example with *a*=2 and *n*=453:
+
+*n* - 1 = 452 = 2^2^ × 113
+
+* 2^113^ ☰ 407 (mod 453)
+* 2^226^ ☰ 407^2^ ☰ 226 (mod 453)
+* 2^452^ ☰ 226^2^ ☰ 4 (mod 453)
+
+Because we made it to 2^n-1^ without seeing 1, the number is composite (by Fermat's Little Theorem). Using this idea, we can now implement Miller-Rabin:
+
+```{pyodide}
+import random
+
+def is_prime_miller_rabin(n):
+    for i in range(20):
+        a = random.randint(2,n-1)
+
+        # Write n-1 as 2^s * d with d odd
+        d = n-1
+        s = 0
+        while d % 2 == 0:
+            d //= 2
+            s += 1
+
+        a_power = pow(a, d, n)
+        for i in range(s):
+            prev_a_power = a_power
+            a_power = (a_power * a_power) % n
+            if a_power == 1 and \
+               prev_a_power != 1 and prev_a_power != n-1:
+                # Found a nontrivial square root of unity
+                return False
+
+        # a_power is now a^n-1^, run Fermat test
+        if a_power != 1:
+            return False
+    return True
+
+for n in [11, 13, 15, 24, 31, 35]:
+    print(f"{n} prime: {is_prime_miller_rabin(n)}")
+for n in [561, 1105, 1729]: # Carmichael numbers
+    print(f"{n} prime: {is_prime_miller_rabin(n)}")
+```
+
+The clever thing about Miller-Rabin is that, as we will see below in @sec-modular-exponentiation, all these squaring operations are actually needed to compute *a*^n-1^ mod *n* anyway. By simply taking a peek at the intermediate results of this computation, it's able to solve the Carmichael number problem and provide a reliable test with no additional work.
 
 ## Speeding up exponentiation mod n {#sec-modular-exponentiation}
 
-We begin with the problem that it's too slow to compute *a*^n^ for large *n*. For example, if *a*=2 and *n*=1000000, then `2**1000000 % 13` computes a massive, 301030-digit intermediate value, only to reduce it to 3 afterwards. Instead, we can aggressively take the remainder during the exponentiation computation, every time we exceed 13:
+When running Miller-Rabin on a prime like 179424893 with witness *a*=2, we need to compute
+`2**44856223 % 179424893`. The final result 117471984 is manageable, but the intermediate result `2**44856223` has over 13 million digits, making this very slow. We've been using Python's built-in `pow()` which can do this quickly, but how does it work?
 
-```{pyodide}
-import timeit
-
-# Find a**k % n
-def power_mod_slow(a, k, n):
-    result = 1
-    for i in range(k):
-        result *= a
-        if result >= n:
-            result = result % n
-    return result            
-
-print(timeit.timeit(lambda: 2**1000000 % 13, number=1))
-print(timeit.timeit(lambda: power_mod_slow(2, 1000000, 13), number=1))
-```
-
-But this version is still too slow, because it computes the power by repeated multiplication 1000000 times. Instead, we can take advantage of the fact that:
+Let's start with a simpler example. Suppose we want 2^1000000^ mod 13. By splitting up 1000000 into 10 × 10 × 10 × 10 × 10 × 10, we can split up the computation like this:
 
 2^1000000^ = (((((2^10^)^10^)^10^)^10^)^10^)^10^
 
-to compute the result like this:
+By taking % 13 after each step, all of our intermediate results remain small, and the computation is dramatically faster:
 
 ```{pyodide}
 import timeit
@@ -123,7 +276,7 @@ print(timeit.timeit(lambda: \
     (((((2**10 % 13)**10 % 13)**10 % 13)**10 % 13)**10 % 13)**10 % 13, number=100000)/100000)
 ```
 
-This is dramatically faster. Suppose we had a more complex power like 2^547^. In this case, we can write it like this:
+With a more complex power like 2^547^, we can break it down like this:
 
 547 = (((5 × 10) + 4) × 10) + 7
 
@@ -191,57 +344,103 @@ print(timeit.timeit(lambda: pow(a, k, n), number=1))
 (power_mod_binary(a, k, n), pow(a, k, n))
 ```
 
-On small inputs, the large digit count of the binary version creates substantial overhead, but on large inputs, its smaller intermediate results allow it to even approach the performance of Python's built-in `pow()`.
+On small inputs, the large digit count of the binary version creates substantial overhead, but on large inputs, its smaller intermediate results allow it to even approach the performance of `pow()`.
 
-### Miller-Rabin primality test
-
-We now return to the remaining problem with the Fermat primality test: false positives. We know that if *a*^n^ % *n* = *a* ever fails, the number is composite, but what if this condition never fails? For most composite numbers, about 50% of all possible *a* will cause this condition to fail, meaning that if we try about 20 random values of *a*, the chance of a false positive is vanishingly small (1/2^20^), so small in fact that hardware failure is more likely. But there are special composite numbers, called Carmichael numbers, that satisfy *a*^n^ % *n* = *a* for all possible *a*, just like prime numbers. Fermat's Little Theorem cannot distinguish them from primes.
-
-To fix this, we introduce a new property called the **Square Roots of Unity Property**. This states that:
-
-* If *p* is prime, then for all 2 ≤ *x* ≤ *p*−2, *x*^2^ % p ≠ 1.
-
-A value *x* such that *x*^2^ % p = 1 is called a **square root of unity**. The values 1 and *p*−1 are always square roots of unity. The above property states that there are no others.
-
-Proof: If *x*^2^ % p = 1, that means *x*^2^ - 1 = (*x* − 1)(*x* + 1) is divisible by *p*. And if a prime *p* divides a product, it must divide either one factor or the other. This implies *x* must be of the form *kp* − 1 or *kp* + 1. Either way it's not between 2 and *p*−2.
-
-The contrapositive of this property states:
-
-* If there exists an *x* in 2 ≤ *x* ≤ *n*−2 with *x*^2^ % n = 1, then *n* is composite.
-
-Miller-Rabin extends the basic Fermat primality test to also search for these square roots of unity, in order to prove that *n* is composite. This test is strong enough to catch Carmichael numbers.
+Notice how both `power_mod_binary()` and `is_prime_miller_rabin()` use squaring to double an exponent. This technique will be common in many algorithms.
 
 ## Primality certificates
 
 In practice, the chance of Miller-Rabin failing is so tiny as to be irrelevant. But in certain special applications, it's still useful to be able to prove with certainty that a number is prime. Although there are deterministic algorithms to determine if a number is prime with certainty (the AKS algorithm), these are impractical for real-world use.
 
-Instead, we'll pursue a different approach where we construct a **primality certificate**, a set of information that anyone can use to quickly verify that a given number is prime. Verifying that the certificate is valid is easy and fast, but finding it is difficult and requires some advanced techniques and heuristics. These techniques will help us prepare for more advanced factoring techniques later in this book.
+Instead, we'll pursue a different approach where we construct a **primality certificate**, a set of information that anyone can use to quickly verify that a given number is prime. Verifying that the certificate is valid is easy and fast, but finding it is difficult and requires some advanced techniques and heuristics.
 
 ### Pratt certificates
 
-### Congruence modulo n notation
+The simplest kind of primality certificate is the Pratt certificate. It's based on Lucas's theorem, which states that if the following two conditions are true for some witness *a*, then *n* is prime:
 
-First, to make it easier to discuss remainders, we introduce this standard math notation for **congruence modulo n**:
+* *a*^n−1^ ☰ 1 (mod *n*)
+* For every prime factor *q* of *n*, we have $a^{(n-1)/q} \not\equiv 1 \pmod n$.
 
-$$ a \equiv b \pmod{n} $$
+For example, take *n* = 15485863. This number is prime, but to prove it using the theorem above, I have to tell you what *a* is, and tell you the prime factorization of *n*-1:
 
-This simply means `a % n == b % n`. For example:
+15485863: *a* = 6, 15485862 = 2 × 3 × 7^2^ × 52673
 
-* 17 ☰ 5 (mod 4)  (because `17 % 4 == 5 % 4 == 1`)
-* 5 ☰ 2 (mod 3)  (because `5 % 3 == 2 % 3 == 2`)
-* 15 ☰ 0 (mod 5)  (because `15 % 5 == 0 % 5 == 0`)
+Given this information, checking it is simple:
 
-A congruence like this is a lot like an equation: as long as we add, subtract, or multiply both sides by the same number, it will remain true. Dividing both sides by the same number is also allowed, but *only under the condition* that the divisor and *n* have no factors in common. Otherwise something like this can happen:
+```{pyodide}
+def pratt_certificate_is_valid(n, a, n_minus_one_prime_factors):
+    # Verify the factors multiply to n-1
+    product = 1
+    for [q,e] in n_minus_one_prime_factors:
+        product *= q**e
+    if product != n-1:
+        return False
 
-* 30 ☰ 15 (mod 5) ✅
-* 6 ☰ 3 (mod 5) ❌ (breaks when dividing both sides by 5)
-* 10 ☰ 5 (mod 5) ✅ (dividing both sides by 3 is okay, 3 has no factors in common with 5)
+    # Verify modular conditions
+    if pow(a, n-1, n) != 1:
+        return False
+    for [q,_] in n_minus_one_prime_factors:
+        if pow(a, (n-1)//q, n) == 1:
+            return False
+    return True
 
-Using this notation, we can rewrite Fermat's Little Theorem like this:
+pratt_certificate_is_valid(
+    15485863, 6, [[2,1], [3,1], [7,2], [52673, 1]])
+```
 
-$$ p\text{ prime}, 1 < a < p \implies a^p \equiv a \pmod p $$
+There is however a problem with this verifier: it trusts that the prime factors of *n*−1 that you gave it are actually prime. This makes it possible to trick it into accepting a composite number by giving
+it a composite factor:
 
-You may also see this written $a^{p-1} \equiv 1 \pmod p$, found by dividing both sides by $a$ (which shares no factors with $p$ so this is okay).
+```{pyodide}
+# Returns True, but 341 = 11 * 31 is composite
+pratt_certificate_is_valid(341, 2, [[5,1],[68,1]])
+```
+
+The verifier could test if the factors are prime, but if they're large, this could be expensive. Instead, we provide Pratt certificates for the prime factors as well. We continue this recursively until we get a number small enough to check manually:
+
+```{pyodide}
+def pratt_certificate_is_valid_recursive(n, certificate_map):
+    small_primes = [2, 3, 5, 7, 11, 13, 17, 19]
+    if n <= small_primes[-1] and n in small_primes:
+        return True  # Base case
+    
+    if n not in certificate_map:
+        return False  # Missing certificate
+
+    (a, n_minus_one_prime_factors) = certificate_map[n]
+
+    # Verify the factors multiply to n-1
+    product = 1
+    for [q,e] in n_minus_one_prime_factors:
+        product *= q**e
+    if product != n-1:
+        return False
+
+    # Verify modular conditions
+    if pow(a, n-1, n) != 1:
+        return False
+    for [q,_] in n_minus_one_prime_factors:
+        if pow(a, (n-1)//q, n) == 1:
+            return False
+
+    # Verify primality of each factor recursively
+    for [q,_] in n_minus_one_prime_factors:
+        if not pratt_certificate_is_valid_recursive(q, certificate_map):
+            return False
+
+    return True
+
+pratt_certificate_is_valid_recursive(
+    15485863,
+    {
+        15485863: (6, [[2,1], [3,1], [7,2], [52673, 1]]),
+        52673: (3, [[2, 6], [823, 1]]),
+        823: (3, [[2,1], [3,1], [137, 1]]),
+        137: (3, [[2,3], [17,1]])
+    })
+```
+
+Using this scheme, it's easy to quickly and reliably verify any number is prime if I just give you a valid Pratt certificate, even if the certificate itself was very expensive to produce. But there's a catch: for some large *p* where *p* - 1 cannot be completely factored in practice, we cannot produce a certificate at all. We'll need new techniques to address this.
 
 ### The group $\mathbb{Z}_p^*$
 
