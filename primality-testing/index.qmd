@@ -63,7 +63,7 @@ for n in [11, 13, 15, 24, 31, 35]:
     test_fermat_property(n)
 ```
 
-For primes like 11, 13, and 31, the property is always true. For most composite numbers like 15, 24, and 35, the property is false for at least half of all possible *a* values. There is no simple way to compute a witness *a* value such that *a*^n^ % *n* ≠ *a*. But because at least half the possible *a* will work, it's sufficient to just try random values of *a*. Each gives us a ≥50% chance of finding a witness, so after trying maybe 30 different values, the chance of failing to find one is < 1/2^30^, incredibly unlikely. This gives us a fast randomized primality test:
+For primes like 11, 13, and 31, the property is always true. For most composite numbers like 15, 24, and 35, the property is false for at least half of all possible *a* values. There is no simple way to compute a witness *a* value such that *a*^n^ % *n* ≠ *a*. But because at least half the possible *a* will work, it's sufficient to just try random values of *a*. Each gives us a ≥50% chance of finding a witness, so after trying 30 different values, the chance of failing to find one is < 1/2^30^, incredibly unlikely. This gives us a fast randomized primality test:
 
 ```{pyodide}
 import random
@@ -118,7 +118,7 @@ $$ p\text{ prime}, 1 < a < p \implies a^{p-1} \equiv 1 \pmod p $$
 
 Because Fermat's Little Theorem cannot distinguish Carmichael numbers from primes, we need a new theorem that can, so we introduce the **Square Roots of Unity Property**:
 
-* If *p* is prime, then for all 2 ≤ *x* ≤ *p*−2, *x*^2^ ☰ 1 (mod *p*)
+* If *p* is prime, then for all 2 ≤ *x* ≤ *p*−2, we have $x^2 \not\equiv 1 \pmod p$
 
 A value *x* such that *x*^2^ ☰ 1 (mod *p*) is called a **square root of unity**. The values 1 and *p*−1 are always square roots of unity (the trivial roots). The above property states that there are no others.
 
@@ -134,7 +134,7 @@ for n in [11, 13, 15, 24, 31, 35, 561]:
     print(f"{n}: {sqrts_of_unity(n)}")
 ```
 
-This property can detect any composite number. However, roots of unity are much sparser than Fermat witnesses, so we can't just choose *a* at random and hope to find one. We need a different strategy.
+This property can detect any composite number just by finding a nontrivial square root of unity. However, square roots of unity are much sparser than Fermat witnesses, so we can't just choose *a* at random and hope to find one. We need a different strategy.
 
 We'll walk through an example with the Carmichael number 561 and the witness *a*=2. We first do the Fermat test using *a*^n-1^ ☰ 1 (mod *n*):
 
@@ -148,7 +148,7 @@ This means 2^280^ is a square root of unity! Unfortunately, it turns out it's eq
 
 * 2^280^ ☰ 1 (mod 561)
 
-But because 280/2 = 140, we can repeat this same trick to find that 2^140^ is a square root of unity. And this one it turns out is nontrivial:
+But because 280/2 = 140, we can repeat this same trick to find that 2^140^ is also a square root of unity. And this one it turns out is nontrivial:
 
 * 2^140^ ☰ 67 (mod 561)
 
